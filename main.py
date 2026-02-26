@@ -761,6 +761,31 @@ def rehab_panel():
                     
             ui.button('ACTIVATE RECOVERY MODE', on_click=set_injury, color='red-7').classes('w-full shadow-sm normal-case text-xs')
 
+# --- NEW: DAILY STREAK TRACKER ---
+@ui.refreshable
+def streak_panel():
+    streak_count, last_7_days = user_health.get_streak_info()
+    
+    # Use an amber/orange theme for the "Fire" streak
+    with ui.card().classes('w-full glass-card p-4 border-l-4 border-amber-500 bg-white/40'):
+        with ui.row().classes('w-full justify-between items-center mb-3'):
+            with ui.row().classes('items-center gap-2'):
+                ui.icon('local_fire_department', size='sm', color='amber-500')
+                ui.label('DAILY STREAK').classes('text-xs font-bold text-amber-900 tracking-wider')
+            
+            ui.label(f"{streak_count} Days").classes('text-lg font-black text-amber-600')
+            
+        # 7-Day Visual Timeline
+        with ui.row().classes('w-full justify-between items-center px-1'):
+            for day in last_7_days:
+                # If logged in, show a filled orange check. Otherwise, a grey dash.
+                circle_color = 'bg-amber-500 text-white' if day['logged'] else 'bg-gray-200 text-gray-400'
+                icon_name = 'check' if day['logged'] else 'remove'
+                
+                with ui.column().classes('items-center gap-1'):
+                    ui.label(day['day_name']).classes('text-[10px] font-bold text-gray-500')
+                    ui.icon(icon_name, size='xs').classes(f'p-1 rounded-full {circle_color} shadow-sm')
+
 @ui.refreshable
 def chat_area():
     with ui.column().classes('w-full gap-3'):
@@ -786,6 +811,7 @@ with ui.row().classes('w-full max-w-7xl mx-auto flex-wrap lg:flex-nowrap gap-6 p
     # LEFT COLUMN (Strictly Profile & Navigation)
     with ui.column().classes('w-full lg:w-1/4 gap-4'):
         profile_sidebar()
+        streak_panel()
         rehab_panel()
         with ui.expansion('Data Matrix', icon='hub', value=True).classes('w-full glass-card text-indigo-900 font-bold bg-white/40 border-l-4 border-indigo-500'):
             data_insights()

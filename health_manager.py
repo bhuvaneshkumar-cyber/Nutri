@@ -23,10 +23,22 @@ class HealthManager:
             "active_strain": "",     # NEW: Stores the current physical strain
             "recovery_mode": False,  # NEW: Toggles the dashboard into rehab mode
             "history": {},
-            "progress_log": []
+            "progress_log": [],
+            "login_dates": []
         }
         self.data = self.load_data()
         self._check_daily_reset()
+        self._record_login() # <--- NEW: Automatically logs your streak when the app opens
+
+    def _record_login(self):
+        """Silently logs today's date to keep the streak alive."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        if "login_dates" not in self.data:
+            self.data["login_dates"] = []
+            
+        if today not in self.data["login_dates"]:
+            self.data["login_dates"].append(today)
+            self.save_data()
 
     def load_data(self):
         if not os.path.exists(self.storage_file):
@@ -145,3 +157,30 @@ class HealthManager:
             weekly_stats["fats"].append(stats.get("fats", 0))
             
         return weekly_stats
+    def get_streak_info(self):
+        """Calculates current streak and the last 7 days of activity."""
+        login_dates = self.data.get("login_dates", [])
+        
+        # Convert strings to actual Date objects for math
+        dates = set(datetime.strptime(d, "%Y-%m-%d").date() for d in login_dates)
+        today = datetime.now().date()
+        
+        streak = 0
+        # The streak is "alive" if you logged in today OR yesterday
+        if today in dates or (today - timedelta(days=1)) in dates:
+            # Count backwards day by day to find the unbroken chain
+            temp_date = today if today in dates else (today - timedelta(days=1))
+            while temp_date in dates:
+                streak += 1
+                temp_date -= timedelta(days=1)
+                
+        # Generate the last 7 days for the UI timeline
+        last_7_days = []
+        for i in range(6, -1, -1):
+            d = today - timedelta(days=i)
+            last_7_days.append({
+                "day_name": d.strftime("%a")[0], # Returns M, T, W, T, F, S, S
+                "logged": d in dates
+            })
+            
+        return streak, last_7_days
