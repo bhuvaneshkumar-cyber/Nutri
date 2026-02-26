@@ -149,7 +149,7 @@ def generate_recovery_protocol(strain_description, location):
         response = client.models.generate_content(
             model=MODEL_ID,
             contents=[prompt],
-            config=types.GenerateContentConfig(temperature=0.4) 
+            config=types.GenerateContentConfig(temperature=0.4)
         )
         return response.text
     except Exception as e:
