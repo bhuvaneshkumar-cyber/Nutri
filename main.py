@@ -1,6 +1,6 @@
 import os
 import sys
-
+import math
 # --- PYINSTALLER WINDOWED MODE FIX ---
 # When running as a windowed .exe, there is no console. 
 # Uvicorn tries to write logs to a missing console and crashes. 
@@ -86,6 +86,7 @@ def solve_gauss_jordan(matrix, targets):
                     
     return [aug[0][3], aug[1][3], aug[2][3]]
 
+
 # Add variables to track the optimizer's state
 state.opt_targets = {'p': 50, 'c': 60, 'f': 20}
 state.opt_foods = [
@@ -94,6 +95,25 @@ state.opt_foods = [
     {'name': 'Almonds', 'p': 21, 'c': 22, 'f': 50}
 ]
 state.opt_results = ""
+
+def pearson_correlation(x, y):
+    """Calculates the linear relationship between two lifestyle variables."""
+    n = len(x)
+    if n < 3: return 0.0
+    
+    mean_x = sum(x) / n
+    mean_y = sum(y) / n
+    
+    # Prevent divide-by-zero if data is entirely flat/identical
+    if all(xi == mean_x for xi in x) or all(yi == mean_y for yi in y):
+        return 0.0
+        
+    numerator = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y))
+    sum_sq_x = sum((xi - mean_x)**2 for xi in x)
+    sum_sq_y = sum((yi - mean_y)**2 for yi in y)
+    
+    denominator = math.sqrt(sum_sq_x * sum_sq_y)
+    return numerator / denominator if denominator != 0 else 0.0
 
 # --- DIALOGS & ONBOARDING ---
 
@@ -476,6 +496,68 @@ def weekly_chart():
     }
     ui.echart(chart_config).classes('w-full h-64 mt-2')
 
+# --- NEW: DATA CORRELATION MATRIX ---
+@ui.refreshable
+def data_insights():
+    history = user_health.data.get("history", {})
+    today = user_health.data.get("current_date")
+    
+    # Merge today's live data with history for real-time analysis
+    full_data = history.copy()
+    full_data[today] = {
+        "consumed": user_health.data.get("consumed", 0),
+        "protein": user_health.data.get("protein", 0),
+        "carbs": user_health.data.get("carbs", 0),
+        "fats": user_health.data.get("fats", 0),
+        "steps": user_health.data.get("steps", 0)
+    }
+    
+    # Filter out empty days to avoid mathematically skewed data
+    valid_days = [d for d in full_data.values() if d.get("consumed", 0) > 0 or d.get("steps", 0) > 0]
+    
+    if len(valid_days) < 4:
+        with ui.card().classes('w-full glass-card p-6 flex flex-col items-center text-center border-dashed border-2 border-indigo-300'):
+            ui.icon('hub', size='3em', color='indigo-400').classes('mb-2')
+            ui.label("Gathering Intelligence...").classes('text-lg font-bold text-indigo-900')
+            ui.label(f"The Correlation Matrix needs at least 4 days of logged data to find hidden lifestyle patterns. Currently logged: {len(valid_days)} days.").classes('text-sm text-indigo-700 mt-2')
+        return
+
+    # Extract arrays for the Pearson algorithm
+    cals = [d.get("consumed", 0) for d in valid_days]
+    steps = [d.get("steps", 0) for d in valid_days]
+    carbs = [d.get("carbs", 0) for d in valid_days]
+    protein = [d.get("protein", 0) for d in valid_days]
+    
+    insights = []
+    
+    # 1. Carbs vs Steps (Energy correlation)
+    r_carbs_steps = pearson_correlation(carbs, steps)
+    if r_carbs_steps > 0.6:
+        insights.append(("🔋 High Energy Pattern", f"Strong positive correlation ({r_carbs_steps:.2f}). On days you eat more carbs, you tend to take significantly more steps!"))
+    elif r_carbs_steps < -0.6:
+        insights.append(("🛋️ Carb Coma Detected", f"Negative correlation ({r_carbs_steps:.2f}). High carb days are strongly linked to lower step counts. Consider adjusting meal timing."))
+
+    # 2. Protein vs Calories (Satiety correlation)
+    r_prot_cals = pearson_correlation(protein, cals)
+    if r_prot_cals < -0.5:
+        insights.append(("🥩 Satiety Effect", f"Negative correlation ({r_prot_cals:.2f}). Eating more protein is helping you naturally consume fewer total calories."))
+        
+    # 3. Steps vs Calories (Appetite correlation)
+    r_steps_cals = pearson_correlation(steps, cals)
+    if r_steps_cals > 0.7:
+        insights.append(("🏃 Active Appetite", f"Positive correlation ({r_steps_cals:.2f}). High step days strongly trigger hunger, leading to higher calorie intake. Monitor post-workout snacking."))
+        
+    with ui.card().classes('w-full glass-card p-4 border-l-4 border-indigo-500'):
+        ui.label('LIFESTYLE CORRELATIONS').classes('text-xs font-bold text-indigo-800 tracking-wider mb-2')
+        
+        if not insights:
+            ui.label("Data is currently neutral. No strong lifestyle correlations detected yet. Keep logging!").classes('text-sm text-indigo-900 italic bg-indigo-50 p-2 rounded')
+        else:
+            for icon_title, text in insights:
+                with ui.card().classes('w-full bg-indigo-50 shadow-none border border-indigo-100 p-3 mb-2'):
+                    ui.label(icon_title).classes('text-sm font-bold text-indigo-900 mb-1')
+                    ui.label(text).classes('text-xs text-indigo-800 leading-tight')
+
 @ui.refreshable
 def predictive_analytics():
     log = user_health.get_progress_log()
@@ -705,6 +787,8 @@ with ui.row().classes('w-full max-w-7xl mx-auto flex-wrap lg:flex-nowrap gap-6 p
     with ui.column().classes('w-full lg:w-1/4 gap-4'):
         profile_sidebar()
         rehab_panel()
+        with ui.expansion('Data Matrix', icon='hub', value=True).classes('w-full glass-card text-indigo-900 font-bold bg-white/40 border-l-4 border-indigo-500'):
+            data_insights()
 
     # CENTER COLUMN (Core Engine: Stats, Charts, and Analytics)
     with ui.column().classes('w-full lg:w-2/4 gap-4'):
