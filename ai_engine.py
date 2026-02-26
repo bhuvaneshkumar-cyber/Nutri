@@ -77,6 +77,8 @@ def generate_recipe(food_name, location, goal):
     Provide a quick, simple, healthy home-cooked recipe or preparation method for '{food_name}'.
     The user is located in '{location}' and their primary health goal is '{goal}'.
     Adapt the ingredients to what is fresh, cultural, and locally available there, while strictly supporting the health goal.
+    
+    IMPORTANT: Do NOT explicitly include the city, state, or region name in the recipe title or text. Use the natural, traditional name of the dish.
     Format the response cleanly in Markdown with bold headers and bullet points. Keep it under 150 words.
     """
     try:
@@ -98,8 +100,9 @@ def analyze_pantry_image(image_bytes, location, goal, mime_type="image/jpeg"):
     The user lives in '{location}' and their health goal is '{goal}'.
     Invent 2 unique, simple, and delicious recipes they can make right now using ONLY the ingredients you see (plus basic pantry staples like salt, pepper, oil, water).
     If you cannot clearly see any food items, politely explain what you see instead.
+    
     Format cleanly in Markdown. For each recipe include:
-    - A catchy, localized title
+    - A catchy title (IMPORTANT: Do NOT include the city, state, or region name anywhere in the title)
     - Estimated Calories
     - Brief instructions
     """
@@ -124,6 +127,7 @@ def analyze_pantry_image(image_bytes, location, goal, mime_type="image/jpeg"):
             
     except Exception as e:
         return f"Failed to analyze pantry: {str(e)}"
+
 # --- NEW: REHAB & RECOVERY ENGINE ---
 def generate_recovery_protocol(strain_description, location):
     if not client:
@@ -137,13 +141,15 @@ def generate_recovery_protocol(strain_description, location):
     Provide a highly actionable recovery protocol formatted cleanly in Markdown. Include:
     1. **Immediate Mobility/Rehab Advice:** 2 specific, safe stretches or actions to take.
     2. **Anti-Inflammatory Diet Shift:** Explain briefly what macros/micronutrients they need right now to repair this specific tissue.
-    3. **Healing Recipe:** 1 specific, hyper-localized recipe using ingredients available in their region that directly supports reducing inflammation and repairing this specific strain.
+    3. **Healing Recipe:** 1 specific recipe using ingredients traditionally available in their region that directly supports reducing inflammation. 
+    
+    IMPORTANT: Do NOT explicitly mention the user's city, state, or region name anywhere in the protocol or recipe title. Give the dish its natural name.
     """
     try:
         response = client.models.generate_content(
             model=MODEL_ID,
             contents=[prompt],
-            config=types.GenerateContentConfig(temperature=0.4) # Lower temperature for clinical accuracy
+            config=types.GenerateContentConfig(temperature=0.4) 
         )
         return response.text
     except Exception as e:
