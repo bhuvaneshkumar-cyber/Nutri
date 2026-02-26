@@ -55,6 +55,46 @@ class State:
 
 state = State()
 
+# --- NEW: MATH ALGORITHM ---
+def solve_gauss_jordan(matrix, targets):
+    """Solves a 3x3 system of linear equations using Gauss-Jordan elimination."""
+    # Create the augmented matrix
+    aug = [matrix[i] + [targets[i]] for i in range(3)]
+    
+    for i in range(3):
+        # Find pivot
+        pivot = aug[i][i]
+        if pivot == 0:
+            # Swap rows if pivot is zero
+            for j in range(i+1, 3):
+                if aug[j][i] != 0:
+                    aug[i], aug[j] = aug[j], aug[i]
+                    pivot = aug[i][i]
+                    break
+            if pivot == 0: return None # Singular matrix (foods have identical macro profiles)
+            
+        # Divide row by pivot
+        for j in range(4):
+            aug[i][j] /= pivot
+            
+        # Eliminate other rows
+        for k in range(3):
+            if k != i:
+                factor = aug[k][i]
+                for j in range(4):
+                    aug[k][j] -= factor * aug[i][j]
+                    
+    return [aug[0][3], aug[1][3], aug[2][3]]
+
+# Add variables to track the optimizer's state
+state.opt_targets = {'p': 50, 'c': 60, 'f': 20}
+state.opt_foods = [
+    {'name': 'Chicken Breast', 'p': 31, 'c': 0, 'f': 3.6},
+    {'name': 'White Rice', 'p': 2.7, 'c': 28, 'f': 0.3},
+    {'name': 'Almonds', 'p': 21, 'c': 22, 'f': 50}
+]
+state.opt_results = ""
+
 # --- DIALOGS & ONBOARDING ---
 
 recipe_dialog = ui.dialog()
@@ -355,6 +395,66 @@ def stats_panel():
             ui.label(f"{d['steps']}").classes('text-3xl font-bold accessible-text')
             ui.label('today').classes('text-xs text-green-700')
 
+# --- NEW: ALGORITHMIC MEAL PREP UI ---
+@ui.refreshable
+def meal_optimizer():
+    with ui.column().classes('w-full mt-2'):
+        ui.label("Enter your target macros and the nutritional value (per 100g) of 3 ingredients. The algorithm will calculate the perfect portion sizes.").classes('text-xs text-gray-600 mb-2 leading-tight')
+        
+        # Target Inputs
+        with ui.row().classes('w-full gap-2 mb-4'):
+            ui.input('Target Protein (g)', value=state.opt_targets['p']).bind_value(state.opt_targets, 'p').classes('flex-grow').props('outlined dense color=orange-7 type=number')
+            ui.input('Target Carbs (g)', value=state.opt_targets['c']).bind_value(state.opt_targets, 'c').classes('flex-grow').props('outlined dense color=orange-7 type=number')
+            ui.input('Target Fats (g)', value=state.opt_targets['f']).bind_value(state.opt_targets, 'f').classes('flex-grow').props('outlined dense color=orange-7 type=number')
+
+        # Food Inputs
+        for i in range(3):
+            with ui.row().classes('w-full gap-2 mb-2 items-center'):
+                ui.input(f'Food {i+1}', value=state.opt_foods[i]['name']).bind_value(state.opt_foods[i], 'name').classes('w-1/3').props('outlined dense color=orange-7')
+                ui.input('P', value=state.opt_foods[i]['p']).bind_value(state.opt_foods[i], 'p').classes('w-1/6').props('outlined dense color=orange-7 type=number')
+                ui.input('C', value=state.opt_foods[i]['c']).bind_value(state.opt_foods[i], 'c').classes('w-1/6').props('outlined dense color=orange-7 type=number')
+                ui.input('F', value=state.opt_foods[i]['f']).bind_value(state.opt_foods[i], 'f').classes('w-1/6').props('outlined dense color=orange-7 type=number')
+
+        def calculate_portions():
+            try:
+                # Extract targets
+                tp = float(state.opt_targets['p'])
+                tc = float(state.opt_targets['c'])
+                tf = float(state.opt_targets['f'])
+                
+                # Build the 3x3 matrix (macros per 1 gram)
+                matrix = []
+                for f in state.opt_foods:
+                    matrix.append([float(f['p'])/100, float(f['c'])/100, float(f['f'])/100])
+                
+                # Transpose matrix for the equation Ax = b
+                A = [[matrix[j][i] for j in range(3)] for i in range(3)]
+                b = [tp, tc, tf]
+                
+                # Run the algorithm
+                solution = solve_gauss_jordan(A, b)
+                
+                if not solution:
+                    state.opt_results = "Error: Foods are too nutritionally similar to solve."
+                else:
+                    g1, g2, g3 = solution
+                    # Check for mathematically correct but physically impossible negative weights
+                    if g1 < 0 or g2 < 0 or g3 < 0:
+                        state.opt_results = "Math Error: Impossible to hit these exact targets without negative food. Try swapping an ingredient!"
+                    else:
+                        state.opt_results = f"🎯 **Perfect Prep:** \n- {g1:.1f}g of {state.opt_foods[0]['name']} \n- {g2:.1f}g of {state.opt_foods[1]['name']} \n- {g3:.1f}g of {state.opt_foods[2]['name']}"
+                
+            except ValueError:
+                state.opt_results = "Please ensure all macro fields contain valid numbers."
+            
+            meal_optimizer.refresh()
+
+        ui.button('CALCULATE PERFECT PORTIONS', on_click=calculate_portions, color='orange-7').classes('w-full shadow-md rounded-lg mt-2 font-bold')
+        
+        if state.opt_results:
+            with ui.card().classes('w-full bg-orange-50 border-l-4 border-orange-500 mt-4 p-3'):
+                ui.markdown(state.opt_results).classes('text-sm text-orange-900')
+
 @ui.refreshable
 def weekly_chart():
     data = user_health.get_weekly_history()
@@ -591,6 +691,8 @@ def chat_area():
 
 # --- DASHBOARD LAYOUT ---
 
+# --- DASHBOARD LAYOUT ---
+
 with ui.row().classes('w-full justify-between items-center py-4 px-6 mb-2 bg-white/30 backdrop-blur-md shadow-sm'):
     ui.label('NUtri-INO').classes('text-3xl font-black glisten-text tracking-tight')
     with ui.row().classes('gap-2'):
@@ -599,23 +701,31 @@ with ui.row().classes('w-full justify-between items-center py-4 px-6 mb-2 bg-whi
 
 with ui.row().classes('w-full max-w-7xl mx-auto flex-wrap lg:flex-nowrap gap-6 p-4 items-stretch'):
     
+    # LEFT COLUMN (Strictly Profile & Navigation)
     with ui.column().classes('w-full lg:w-1/4 gap-4'):
         profile_sidebar()
         rehab_panel()
 
+    # CENTER COLUMN (Core Engine: Stats, Charts, and Analytics)
     with ui.column().classes('w-full lg:w-2/4 gap-4'):
         stats_panel()
         scan_area()
         
-        with ui.expansion('Predictive Analytics', icon='online_prediction', value=True).classes('w-full glass-card text-blue-900 font-bold bg-white/40 border-l-4 border-blue-500'):
+        # 1. SWAPPED: Weekly Trends moved to the top
+        with ui.expansion('Weekly Trends', icon='insert_chart', value=True).classes('w-full glass-card text-green-900 font-bold bg-white/40'):
+            weekly_chart()
+            
+        # 2. SWAPPED: Predictive Analytics moved down
+        with ui.expansion('Predictive Analytics', icon='online_prediction', value=False).classes('w-full glass-card text-blue-900 font-bold bg-white/40 border-l-4 border-blue-500'):
             predictive_analytics()
             
-        with ui.expansion('Weekly Trends', icon='insert_chart', value=False).classes('w-full glass-card text-green-900 font-bold bg-white/40'):
-            weekly_chart()
+        with ui.expansion('Algorithmic Meal Prep', icon='calculate', value=False).classes('w-full glass-card text-orange-900 font-bold bg-white/40 border-l-4 border-orange-500'):
+            meal_optimizer()
             
         with ui.expansion('Body Transformation', icon='photo_camera', value=False).classes('w-full glass-card text-green-900 font-bold bg-white/40'):
             progress_gallery()
 
+    # RIGHT COLUMN (AI Assistant & Recipes)
     with ui.column().classes('w-full lg:w-1/4 gap-4 flex flex-col'):
         smart_suggestions()
         with ui.card().classes('w-full glass-card flex-grow flex flex-col p-0 overflow-hidden min-h-[400px]'):
@@ -625,6 +735,5 @@ with ui.row().classes('w-full max-w-7xl mx-auto flex-wrap lg:flex-nowrap gap-6 p
                 ui.input(placeholder='Ask your coach...').props('dense outlined rounded color=green-7').classes('flex-grow bg-white') \
                     .bind_value(state, 'chat_input').on('keydown.enter', send_chat)
                 ui.button(icon='send', on_click=send_chat, color='green-6').props('round shadow-md')
-
 
 ui.run(title="NUtri-INO Dashboard", dark=False, port=8080, reload=False)
