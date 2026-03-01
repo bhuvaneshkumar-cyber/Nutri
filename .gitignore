@@ -1,0 +1,20 @@
+# Exclude local user data and health history
+user_data.json
+
+# Exclude personal transformation photos
+progress_shots/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+
+# --- OS & IDE ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
