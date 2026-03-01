@@ -1,0 +1,15 @@
+# UI and Web
+nicegui
+flask
+flask-cors
+
+# AI Engine
+google-genai
+
+# Math and Data
+numpy
+pandas
+
+# Utilities
+requests
+python-dotenv
